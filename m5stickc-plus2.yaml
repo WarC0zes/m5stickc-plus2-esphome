@@ -1,0 +1,282 @@
+substitutions:
+  devicename: m5stickc-plus2
+  upper_devicename: M5StickC PLUS2
+
+esphome:
+  name: $devicename
+  platform: ESP32
+  board: m5stick-c
+  platformio_options:
+    upload_speed: 115200
+  on_boot: 
+    - priority: 600
+      then: 
+        - output.turn_on: output_high
+    - then:
+      # read the RTC time once when the system boots
+      - pcf8563.read_time: my_time
+      - text_sensor.template.publish:
+          id: template_text
+          state: !lambda |-
+              char str[17];
+              time_t currTime = id(my_time).now().timestamp;
+              strftime(str, sizeof(str), "%H:%M:%S %d/%m/%y", localtime(&currTime));
+              return  { str };
+    - then:
+      - light.turn_on:
+          id: display_bl
+          brightness: 75%
+  on_shutdown:
+    - priority: 600
+      then:
+        - output.turn_off: output_high
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+ota:
+  password: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.X.X
+    gateway: !secret wifi_gtw
+    subnet: !secret wifi_sub
+    dns1: !secret wifi_dns1
+
+# Battery voltage measured through ADC1_CH2. PLUS2 has a voltage divider,
+# so reading needs to be multiplied by 2
+sensor:
+  - platform: adc
+    pin: GPIO38
+    attenuation: 11db
+    update_interval: 60s
+    name: "Battery Voltage"
+    filters:
+      - multiply: 2.0
+
+  - platform: sht3xd
+    i2c_id: i2c_external
+    temperature:
+      name: ${upper_devicename} Temperature
+      id: temp_state
+      filters:
+        - offset: -1.4
+    humidity:
+      name: ${upper_devicename} Humidity
+      id: hum_state
+      filters:
+        - offset: 6.0
+    address: 0x44
+    update_interval: 60s
+
+  - platform: qmp6988
+    i2c_id: i2c_external
+    pressure:
+      name: ${upper_devicename} Pression
+      id: pression_state
+    address: 0x70
+    update_interval: 60s
+    iir_filter: 2x
+
+  - platform: homeassistant
+    id: battery_percent
+    entity_id: sensor.m5stick_plus2_battery_pourcent
+
+binary_sensor:
+  # Turn on display backlight TFT LCD while Button A is click. Turn on red led while Button A is double_click
+  - platform: gpio
+    pin:
+      number: GPIO37
+      inverted: true
+    name: ${upper_devicename} Button A
+    on_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - light.toggle: display_bl
+    on_double_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - light.toggle: led1
+
+  # Play 1000Hz tone through buzzer while Button B is pressed
+  - platform: gpio
+    pin:
+      number: GPIO39
+      inverted: true
+    name: ${upper_devicename} Button B
+    on_press:
+      then:
+        - output.turn_on: buzzer
+        - output.ledc.set_frequency:
+            id: buzzer
+            frequency: "1000Hz"
+        - output.set_level:
+            id: buzzer
+            level: "50%"
+
+    on_release:
+      then:
+        - output.turn_off: buzzer
+
+  - platform: gpio
+    pin:
+      number: GPIO35
+      inverted: true
+    name: ${upper_devicename} Button C
+
+light:
+  # Red led
+  - platform: monochromatic
+    output:  builtin_led
+    name: ${upper_devicename} Led
+    id: led1
+  # Backlight TFT LCD
+  - platform: monochromatic
+    output:  backlight
+    name: ${upper_devicename} Backlight
+    id: display_bl
+    restore_mode: ALWAYS_ON
+
+time:
+  - platform: pcf8563
+    i2c_id: i2c_internal
+    id: my_time
+    address: 0x51
+    update_interval: never
+
+  - platform: homeassistant
+    on_time_sync:
+      then:
+        - pcf8563.write_time: my_time
+        - text_sensor.template.publish:
+            id: template_text
+            state: !lambda |-
+              char str[17];
+              time_t currTime = id(my_time).now().timestamp;
+              strftime(str, sizeof(str), "%H:%M:%S %d/%m/%y", localtime(&currTime));
+              return  { str };
+
+text_sensor:
+  - platform: template
+    name: "RTC Sensor"
+    id: template_text
+
+output:
+  # Red led
+  - platform: ledc
+    pin: 19
+    inverted: false
+    id: builtin_led
+  # Buzzer
+  - platform: ledc
+    pin: 2
+    inverted: true
+    id: buzzer
+  # Backlight TFT LCD
+  - platform: ledc
+    pin: 27
+    inverted: false
+    id: backlight
+  # Battery switch
+  - platform: gpio
+    pin: GPIO4 
+    id: output_high
+
+
+spi:
+  clk_pin: GPIO13
+  mosi_pin: GPIO15
+
+# Built-in I2C Bus. Bus_external is for devices connected via the HAT pins. Not sure which interface is used for devices connected via the Grove port
+i2c:
+  - id: i2c_internal
+    sda: GPIO21
+    scl: GPIO22
+    scan: false
+  - id: i2c_external
+    sda: GPIO0
+    scl: GPIO26
+    scan: false
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 22
+
+image:
+  - file: mdi:weather-pouring
+    id: pouring
+    resize: 70x70
+  - file: mdi:weather-partly-cloudy
+    id: partly_cloudy
+    resize: 70x70
+  - file: mdi:weather-sunny
+    id: sunny
+    resize: 70x70
+  - file: mdi:close
+    id: croix
+    resize: 70x70
+  - file: mdi:battery-high
+    id: battery
+    resize: 30x30
+
+color:
+  - id: my_white
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: my_blue
+    red: 0%
+    green: 0%
+    blue: 100%
+  - id: my_red
+    red: 100%
+    green: 0%
+    blue: 0%
+  - id: my_green
+    red: 0%
+    green: 100%
+    blue: 0%
+  - id: my_yellow
+    red: 100%
+    green: 100%
+    blue: 0%
+
+# 1.14 inch, 135*240 Colorful TFT LCD, ST7789v2
+display:
+  - platform: ili9xxx
+    model: st7789v
+    cs_pin: GPIO5
+    dc_pin: GPIO14
+    reset_pin: GPIO12
+    rotation: 90
+    dimensions:
+      height: 240
+      width: 135
+      offset_height: 40
+      offset_width: 52
+    # Required or the colors are all inverted, and Black screen is White
+    invert_colors: true
+    lambda: |-
+      it.strftime(30, 2, id(roboto), id(my_blue), "%H:%M:%S %d/%m/%y", id(my_time).now());     
+      if ((id(pression_state).state >= 960) && (id(pression_state).state < 990)) {it.image(4, 30, id(pouring), id(my_red));}
+      else if ((id(pression_state).state >= 990) && (id(pression_state).state < 1010)) {it.image(4, 30, id(partly_cloudy), id(my_yellow));}
+      else if ((id(pression_state).state >= 1010) && (id(pression_state).state < 1060)) {it.image(4, 30, id(sunny), id(my_green));}
+      else {it.image(4, 30, id(croix), id(my_red));}
+      it.printf(84, 40, id(roboto), id(my_green), "%.0fhpa", id(pression_state).state);
+      it.printf(84, 66, id(roboto), id(my_blue), "%.1f°C", id(temp_state).state);
+      it.printf(163, 66, id(roboto), id(my_blue), "%.0f%%", id(hum_state).state);
+      it.image(25, 102, id(battery), id(my_red));
+      if (id(battery_percent).state < 11) { it.image(25, 102, id(battery), id(my_red));}
+      else {it.image(25, 102, id(battery), id(my_green));}
+      it.printf(84, 106, id(roboto), id(my_white), "%.0f%%", id(battery_percent).state);
