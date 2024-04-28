@@ -189,9 +189,11 @@ output:
     id: backlight
   # Battery switch
   - platform: gpio
-    pin: GPIO4 
     id: output_high
-
+    pin:
+      number: GPIO4
+      mode:
+        output: true
 
 spi:
   clk_pin: GPIO13
