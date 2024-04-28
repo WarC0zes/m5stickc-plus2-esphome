@@ -6,7 +6,7 @@ template:
         unit_of_measurement: "%"
         state: >
           {% set battery_voltage = states('sensor.battery_voltage') | float(0) %}
-          {% set max_battery_voltage = 4.00 %}
+          {% set max_battery_voltage = 4.05 %}
           {% set min_battery_voltage = 3.0 %}
           {% set m = 100 / (max_battery_voltage - min_battery_voltage) %}
           {% set b = m * min_battery_voltage %}   
