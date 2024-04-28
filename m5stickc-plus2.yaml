@@ -1,9 +1,11 @@
 substitutions:
-  devicename: m5stickc-plus2
-  upper_devicename: M5StickC PLUS2
+  name: m5stickc-plus2
+  friendly_name: M5StickC PLUS2
 
 esphome:
-  name: $devicename
+  name: ${name}
+  name_add_mac_suffix: false
+  friendly_name: ${friendly_name}
   platform: ESP32
   board: m5stick-c
   platformio_options:
@@ -51,6 +53,20 @@ wifi:
     subnet: !secret wifi_sub
     dns1: !secret wifi_dns1
 
+script:
+  - id: buzzer_cycle
+    mode: single
+    then:
+      - output.turn_on: buzzer
+      - output.ledc.set_frequency:
+          id: buzzer
+          frequency: "1000Hz"
+      - output.set_level:
+          id: buzzer
+          level: "50%"
+      - delay: 2s
+      - output.turn_off: buzzer
+
 # Battery voltage measured through ADC1_CH2. PLUS2 has a voltage divider,
 # so reading needs to be multiplied by 2
 sensor:
@@ -58,19 +74,23 @@ sensor:
     pin: GPIO38
     attenuation: 11db
     update_interval: 60s
-    name: "Battery Voltage"
+    name: Battery Voltage
     filters:
       - multiply: 2.0
+    on_value_range:
+      - below: 3.2
+        then:
+          - script.execute: buzzer_cycle
 
   - platform: sht3xd
     i2c_id: i2c_external
     temperature:
-      name: ${upper_devicename} Temperature
+      name: Temperature
       id: temp_state
       filters:
         - offset: -1.4
     humidity:
-      name: ${upper_devicename} Humidity
+      name: Humidity
       id: hum_state
       filters:
         - offset: 6.0
@@ -80,7 +100,7 @@ sensor:
   - platform: qmp6988
     i2c_id: i2c_external
     pressure:
-      name: ${upper_devicename} Pression
+      name: Pression
       id: pression_state
     address: 0x70
     update_interval: 60s
@@ -90,30 +110,59 @@ sensor:
     id: battery_percent
     entity_id: sensor.m5stick_plus2_battery_pourcent
 
+  - platform: wifi_signal
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+    internal: true
+
+  - platform: copy
+    source_id: wifi_signal_db
+    name: WiFi Signal
+    id: wifi_signal_pct
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "%"
+    entity_category: "diagnostic"
+    device_class: ""
+
+  - platform: uptime
+    id: uptime_sec
+    update_interval: 60s
+    internal: true
+
+switch:
+  - platform: restart
+    name: Restart
+    entity_category: "diagnostic"
+
 binary_sensor:
   # Turn on display backlight TFT LCD while Button A is click. Turn on red led while Button A is double_click
   - platform: gpio
     pin:
       number: GPIO37
       inverted: true
-    name: ${upper_devicename} Button A
-    on_click:
-      min_length: 50ms
-      max_length: 350ms
-      then:
-        - light.toggle: display_bl
-    on_double_click:
-      min_length: 50ms
-      max_length: 350ms
-      then:
-        - light.toggle: led1
+    name: Button A
+    on_multi_click:
+      - timing:
+          - ON for 40ms to 400ms
+          - OFF for at least 330ms
+        then:
+          - light.toggle: display_bl
+      - timing:
+          - ON for 40ms to 400ms
+          - OFF for 40ms to 300ms
+          - ON for 40ms to 400ms
+          - OFF for at least 330ms
+        then:
+          - light.toggle: led1
 
   # Play 1000Hz tone through buzzer while Button B is pressed
   - platform: gpio
     pin:
       number: GPIO39
       inverted: true
-    name: ${upper_devicename} Button B
+    name: Button B
     on_press:
       then:
         - output.turn_on: buzzer
@@ -123,7 +172,6 @@ binary_sensor:
         - output.set_level:
             id: buzzer
             level: "50%"
-
     on_release:
       then:
         - output.turn_off: buzzer
@@ -132,18 +180,22 @@ binary_sensor:
     pin:
       number: GPIO35
       inverted: true
-    name: ${upper_devicename} Button C
+    name: Button C
+
+  - platform: status
+    name: Statut
+    entity_category: "diagnostic"
 
 light:
   # Red led
   - platform: monochromatic
     output:  builtin_led
-    name: ${upper_devicename} Led
+    name: Led
     id: led1
   # Backlight TFT LCD
   - platform: monochromatic
     output:  backlight
-    name: ${upper_devicename} Backlight
+    name: Backlight
     id: display_bl
     restore_mode: ALWAYS_ON
 
@@ -168,8 +220,32 @@ time:
 
 text_sensor:
   - platform: template
-    name: "RTC Sensor"
+    name: RTC Sensor
     id: template_text
+
+  - platform: template
+    id: plus_uptime
+    name: Uptime
+    lambda: |-
+      int seconds = (id(uptime_sec).state);
+      int days = seconds / (24 * 3600);
+      seconds = seconds % (24 * 3600); 
+      int hours = seconds / 3600;
+      seconds = seconds % 3600;
+      int minutes = seconds /  60;
+      seconds = seconds % 60;
+      if ( days ) {
+        return { (String(days) +"d " + String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+      } else if ( hours ) {
+        return { (String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+      } else if ( minutes ) {
+        return { (String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+      } else {
+        return { (String(seconds) +"s ").c_str() };
+      }
+    icon: mdi:clock-start
+    update_interval: 60s
+    entity_category: "diagnostic"
 
 output:
   # Red led
@@ -231,6 +307,9 @@ image:
   - file: mdi:battery-high
     id: battery
     resize: 30x30
+  - file: mdi:wifi
+    id: wifi_icon
+    resize: 30x30
 
 color:
   - id: my_white
@@ -253,6 +332,10 @@ color:
     red: 100%
     green: 100%
     blue: 0%
+  - id: my_orange
+    red: 100%
+    green: 50%
+    blue: 0%
 
 # 1.14 inch, 135*240 Colorful TFT LCD, ST7789v2
 display:
@@ -271,14 +354,18 @@ display:
     invert_colors: true
     lambda: |-
       it.strftime(30, 2, id(roboto), id(my_blue), "%H:%M:%S %d/%m/%y", id(my_time).now());     
-      if ((id(pression_state).state >= 960) && (id(pression_state).state < 990)) {it.image(4, 30, id(pouring), id(my_red));}
-      else if ((id(pression_state).state >= 990) && (id(pression_state).state < 1010)) {it.image(4, 30, id(partly_cloudy), id(my_yellow));}
-      else if ((id(pression_state).state >= 1010) && (id(pression_state).state < 1060)) {it.image(4, 30, id(sunny), id(my_green));}
-      else {it.image(4, 30, id(croix), id(my_red));}
-      it.printf(84, 40, id(roboto), id(my_green), "%.0fhpa", id(pression_state).state);
-      it.printf(84, 66, id(roboto), id(my_blue), "%.1f°C", id(temp_state).state);
-      it.printf(163, 66, id(roboto), id(my_blue), "%.0f%%", id(hum_state).state);
-      it.image(25, 102, id(battery), id(my_red));
-      if (id(battery_percent).state < 11) { it.image(25, 102, id(battery), id(my_red));}
-      else {it.image(25, 102, id(battery), id(my_green));}
-      it.printf(84, 106, id(roboto), id(my_white), "%.0f%%", id(battery_percent).state);
+      if ((id(pression_state).state >= 960) && (id(pression_state).state < 990)) {it.image(14, 30, id(pouring), id(my_red));}
+      else if ((id(pression_state).state >= 990) && (id(pression_state).state < 1013)) {it.image(14, 30, id(partly_cloudy), id(my_yellow));}
+      else if ((id(pression_state).state >= 1013) && (id(pression_state).state < 1060)) {it.image(14, 30, id(sunny), id(my_green));}
+      else {it.image(14, 30, id(croix), id(my_red));}
+      it.printf(94, 40, id(roboto), id(my_green), "%.0fhpa", id(pression_state).state);
+      it.printf(94, 66, id(roboto), id(my_blue), "%.1f°C", id(temp_state).state);
+      it.printf(173, 66, id(roboto), id(my_blue), "%.0f%%", id(hum_state).state);
+      if (id(battery_percent).state < 11) { it.image(20, 102, id(battery), id(my_red));}
+      else {it.image(20, 102, id(battery), id(my_green));}
+      it.printf(54, 106, id(roboto), id(my_white), "%.0f%%", id(battery_percent).state);
+      if ((id(wifi_signal_pct).state >= 1) && (id(wifi_signal_pct).state < 25)) {it.image(123, 102, id(wifi_icon), id(my_red));}
+      else if ((id(wifi_signal_pct).state >= 25) && (id(wifi_signal_pct).state < 50)) {it.image(123, 102, id(wifi_icon), id(my_orange));}
+      else if ((id(wifi_signal_pct).state >= 50) && (id(wifi_signal_pct).state < 75)) {it.image(123, 102, id(wifi_icon), id(my_yellow));}
+      else {it.image(123, 102, id(wifi_icon), id(my_green));}
+      it.printf(161, 106, id(roboto), id(my_white), "%.0f%%", id(wifi_signal_pct).state);
