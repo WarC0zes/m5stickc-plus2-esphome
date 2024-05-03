@@ -21,6 +21,12 @@ M5StickC Plus2 ESPHome Barometer
 - 1 click: toggle display
 - 2 click: toggle led
 
+**Option button B:**
+- press: ring the buzzer
+
+**Option battery:**
+- an alert with the buzzer which sounds at 20% battery remaining.
+
 For uptime template, if you compile with esp-idf, use this code:
 ```
   - platform: template
