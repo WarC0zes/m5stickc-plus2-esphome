@@ -6,8 +6,6 @@ esphome:
   name: ${name}
   name_add_mac_suffix: false
   friendly_name: ${friendly_name}
-  platform: ESP32
-  board: m5stick-c
   platformio_options:
     upload_speed: 115200
   on_boot: 
@@ -32,6 +30,9 @@ esphome:
     - priority: 600
       then:
         - output.turn_off: output_high
+
+esp32:
+  board: m5stick-c
 
 # Enable logging
 logger:
@@ -295,21 +296,27 @@ font:
 image:
   - file: mdi:weather-pouring
     id: pouring
+    type: BINARY  
     resize: 70x70
   - file: mdi:weather-partly-cloudy
     id: partly_cloudy
+    type: BINARY
     resize: 70x70
   - file: mdi:weather-sunny
     id: sunny
+    type: BINARY
     resize: 70x70
   - file: mdi:close
     id: croix
+    type: BINARY
     resize: 70x70
   - file: mdi:battery-high
     id: battery
+    type: BINARY
     resize: 30x30
   - file: mdi:wifi
     id: wifi_icon
+    type: BINARY
     resize: 30x30
 
 color:
@@ -346,6 +353,7 @@ display:
     dc_pin: GPIO14
     reset_pin: GPIO12
     rotation: 90
+    color_palette: NONE
     dimensions:
       height: 240
       width: 135
