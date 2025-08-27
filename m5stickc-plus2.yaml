@@ -22,7 +22,6 @@ esphome:
               time_t currTime = id(my_time).now().timestamp;
               strftime(str, sizeof(str), "%H:%M:%S %d/%m/%y", localtime(&currTime));
               return  { str };
-    - then:
       - light.turn_on:
           id: display_bl
           brightness: 75%
@@ -33,6 +32,11 @@ esphome:
 
 esp32:
   board: m5stick-c
+  framework:
+    type: esp-idf   
+  flash_size: 8MB
+
+psram:
 
 # Enable logging
 logger:
@@ -77,6 +81,7 @@ sensor:
     attenuation: 11db
     update_interval: 60s
     name: Battery Voltage
+    id: battery_voltage
     filters:
       - multiply: 2.0
     on_value_range:
@@ -84,18 +89,45 @@ sensor:
         then:
           - script.execute: buzzer_cycle
 
+  - platform: template
+    name: "Battery Level"
+    id: battery_level
+    unit_of_measurement: "%"
+    icon: "mdi:battery"
+    device_class: battery
+    state_class: measurement
+    lambda: 'return id(battery_voltage).state;'
+    update_interval: 60s
+    filters:
+      - calibrate_linear:
+          - 4.15 -> 100.0
+          - 3.96 -> 90.0
+          - 3.91 -> 80.0
+          - 3.85 -> 70.0
+          - 3.80 -> 60.0
+          - 3.75 -> 50.0
+          - 3.68 -> 40.0
+          - 3.58 -> 30.0
+          - 3.49 -> 20.0
+          - 3.41 -> 10.0
+          - 3.30 -> 5.0
+          - 3.27 -> 0.0
+      - clamp:
+          min_value: 0
+          max_value: 100
+
   - platform: sht3xd
     i2c_id: i2c_external
     temperature:
       name: Temperature
       id: temp_state
       filters:
-        - offset: -1.4
+        - offset: -1.5
     humidity:
       name: Humidity
       id: hum_state
       filters:
-        - offset: 6.0
+        - offset: 8.0
     address: 0x44
     update_interval: 60s
 
@@ -107,10 +139,6 @@ sensor:
     address: 0x70
     update_interval: 60s
     iir_filter: 2x
-
-  - platform: homeassistant
-    id: battery_percent
-    entity_id: sensor.m5stick_plus2_battery_pourcent
 
   - platform: wifi_signal
     id: wifi_signal_db
@@ -237,13 +265,13 @@ text_sensor:
       int minutes = seconds /  60;
       seconds = seconds % 60;
       if ( days ) {
-        return { (String(days) +"d " + String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+        return { (to_string(days) +"d " + to_string(hours) +"h " + to_string(minutes) +"m "+ to_string(seconds) +"s ").c_str() };
       } else if ( hours ) {
-        return { (String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+        return { (to_string(hours) +"h " + to_string(minutes) +"m "+ to_string(seconds) +"s ").c_str() };
       } else if ( minutes ) {
-        return { (String(minutes) +"m "+ String(seconds) +"s ").c_str() };
+        return { (to_string(minutes) +"m "+ to_string(seconds) +"s ").c_str() };
       } else {
-        return { (String(seconds) +"s ").c_str() };
+        return { (to_string(seconds) +"s ").c_str() };
       }
     icon: mdi:clock-start
     update_interval: 60s
@@ -363,18 +391,19 @@ display:
     invert_colors: true
     lambda: |-
       it.strftime(30, 2, id(roboto), id(my_blue), "%H:%M:%S %d/%m/%y", id(my_time).now());     
-      if ((id(pression_state).state >= 960) && (id(pression_state).state < 990)) {it.image(14, 30, id(pouring), id(my_red));}
-      else if ((id(pression_state).state >= 990) && (id(pression_state).state < 1013)) {it.image(14, 30, id(partly_cloudy), id(my_yellow));}
-      else if ((id(pression_state).state >= 1013) && (id(pression_state).state < 1060)) {it.image(14, 30, id(sunny), id(my_green));}
+      if ((id(pression_state).state >= 960) && (id(pression_state).state < 983)) {it.image(14, 30, id(pouring), id(my_red));}
+      else if ((id(pression_state).state >= 983) && (id(pression_state).state < 1016)) {it.image(14, 30, id(partly_cloudy), id(my_yellow));}
+      else if ((id(pression_state).state >= 1016) && (id(pression_state).state < 1060)) {it.image(14, 30, id(sunny), id(my_green));}
       else {it.image(14, 30, id(croix), id(my_red));}
       it.printf(94, 40, id(roboto), id(my_green), "%.0fhpa", id(pression_state).state);
       it.printf(94, 66, id(roboto), id(my_blue), "%.1f°C", id(temp_state).state);
       it.printf(173, 66, id(roboto), id(my_blue), "%.0f%%", id(hum_state).state);
-      if (id(battery_percent).state < 11) { it.image(20, 102, id(battery), id(my_red));}
+      if (id(battery_level).state < 11) { it.image(20, 102, id(battery), id(my_red));}
       else {it.image(20, 102, id(battery), id(my_green));}
-      it.printf(54, 106, id(roboto), id(my_white), "%.0f%%", id(battery_percent).state);
+      it.printf(54, 106, id(roboto), id(my_white), "%.0f%%", id(battery_level).state);
       if ((id(wifi_signal_pct).state >= 1) && (id(wifi_signal_pct).state < 25)) {it.image(123, 102, id(wifi_icon), id(my_red));}
       else if ((id(wifi_signal_pct).state >= 25) && (id(wifi_signal_pct).state < 50)) {it.image(123, 102, id(wifi_icon), id(my_orange));}
       else if ((id(wifi_signal_pct).state >= 50) && (id(wifi_signal_pct).state < 75)) {it.image(123, 102, id(wifi_icon), id(my_yellow));}
       else {it.image(123, 102, id(wifi_icon), id(my_green));}
       it.printf(161, 106, id(roboto), id(my_white), "%.0f%%", id(wifi_signal_pct).state);
+
