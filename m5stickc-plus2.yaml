@@ -398,7 +398,7 @@ display:
       it.printf(94, 40, id(roboto), id(my_green), "%.0fhpa", id(pression_state).state);
       it.printf(94, 66, id(roboto), id(my_blue), "%.1f°C", id(temp_state).state);
       it.printf(173, 66, id(roboto), id(my_blue), "%.0f%%", id(hum_state).state);
-      if (id(battery_level).state < 11) { it.image(20, 102, id(battery), id(my_red));}
+      if (id(battery_level).state < 21) { it.image(20, 102, id(battery), id(my_red));}
       else {it.image(20, 102, id(battery), id(my_green));}
       it.printf(54, 106, id(roboto), id(my_white), "%.0f%%", id(battery_level).state);
       if ((id(wifi_signal_pct).state >= 1) && (id(wifi_signal_pct).state < 25)) {it.image(123, 102, id(wifi_icon), id(my_red));}
@@ -406,4 +406,3 @@ display:
       else if ((id(wifi_signal_pct).state >= 50) && (id(wifi_signal_pct).state < 75)) {it.image(123, 102, id(wifi_icon), id(my_yellow));}
       else {it.image(123, 102, id(wifi_icon), id(my_green));}
       it.printf(161, 106, id(roboto), id(my_white), "%.0f%%", id(wifi_signal_pct).state);
-
