@@ -33,7 +33,9 @@ esphome:
 esp32:
   board: m5stick-c
   framework:
-    type: esp-idf   
+    type: esp-idf
+    advanced:
+      minimum_chip_revision: "3.1"
   flash_size: 8MB
 
 psram:
@@ -375,7 +377,7 @@ color:
 
 # 1.14 inch, 135*240 Colorful TFT LCD, ST7789v2
 display:
-  - platform: ili9xxx
+  - platform: mipi_spi
     model: st7789v
     cs_pin: GPIO5
     dc_pin: GPIO14
