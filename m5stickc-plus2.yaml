@@ -324,27 +324,33 @@ font:
     size: 22
 
 image:
-  - file: mdi:weather-pouring
+  - platform: file 
+    file: mdi:weather-pouring
     id: pouring
     type: BINARY  
     resize: 70x70
-  - file: mdi:weather-partly-cloudy
+  - platform: file 
+    file: mdi:weather-partly-cloudy
     id: partly_cloudy
     type: BINARY
     resize: 70x70
-  - file: mdi:weather-sunny
+  - platform: file 
+    file: mdi:weather-sunny
     id: sunny
     type: BINARY
     resize: 70x70
-  - file: mdi:close
+  - platform: file 
+    file: mdi:close
     id: croix
     type: BINARY
     resize: 70x70
-  - file: mdi:battery-high
+  - platform: file 
+    file: mdi:battery-high
     id: battery
     type: BINARY
     resize: 30x30
-  - file: mdi:wifi
+  - platform: file 
+    file: mdi:wifi
     id: wifi_icon
     type: BINARY
     resize: 30x30
